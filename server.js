@@ -39,7 +39,9 @@ function verify(secret, token) {
 
 function createApp(opts) {
   const { stripe, sendEmail } = opts;
-  const cfg = Object.assign({ publicDir: path.join(__dirname, 'public'), premiumDir: path.join(__dirname, 'premium'), priceId: '', tax: false, baseUrl: 'http://localhost:3000' }, opts.config);
+  const cfg = Object.assign({ publicDir: path.join(__dirname, 'public'), premiumDir: path.join(__dirname, 'premium'), tax: false, baseUrl: 'http://localhost:3000', trialDays: 7, monthlyPence: 500, yearlyPence: 5000 }, opts.config);
+  const PLANS = { monthly: { interval: 'month', pence: cfg.monthlyPence }, yearly: { interval: 'year', pence: cfg.yearlyPence } };
+  let portalConfigId = null; // created through the API on first use, so no Stripe dashboard setup is needed
   if (!cfg.secret) throw new Error('config.secret is required');
   const secure = cfg.baseUrl.startsWith('https://');
   const subCache = new Map(); // customerId -> { ok, at }
@@ -128,17 +130,25 @@ function createApp(opts) {
       return res.end(getPremiumBundle());
     }
 
+    if (route === 'GET /api/plans') {
+      return json(res, 200, { trialDays: cfg.trialDays, monthly: cfg.monthlyPence, yearly: cfg.yearlyPence });
+    }
+
     if (route === 'POST /api/checkout') {
+      let body; try { body = await readBody(req); } catch (e) { return json(res, 400, { error: 'Bad request' }); }
+      const planName = body.plan === 'yearly' ? 'yearly' : 'monthly';
+      const plan = PLANS[planName];
       const params = {
         mode: 'subscription',
-        line_items: [cfg.priceId
-          ? { price: cfg.priceId, quantity: 1 }
-          : { quantity: 1, price_data: { currency: 'gbp', unit_amount: 500, recurring: { interval: 'month' }, product_data: { name: 'Excel Easy Premium', description: 'All lessons, formula builder, practice sheet and formula checker' } } }],
+        line_items: [{ quantity: 1, price_data: { currency: 'gbp', unit_amount: plan.pence, recurring: { interval: plan.interval }, product_data: { name: `Excel Easy Premium (${planName})`, description: 'All lessons, formula builder, practice sheet and formula checker' } } }],
         success_url: `${cfg.baseUrl}/api/checkout/complete?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${cfg.baseUrl}/?cancelled=1#home`,
         allow_promotion_codes: true,
         billing_address_collection: 'required',
+        metadata: { plan: planName },
+        subscription_data: { metadata: { plan: planName } },
       };
+      if (cfg.trialDays > 0) params.subscription_data.trial_period_days = cfg.trialDays;
       if (cfg.tax) params.automatic_tax = { enabled: true };
       try {
         const session = await stripe.checkout.sessions.create(params);
@@ -196,7 +206,19 @@ function createApp(opts) {
       const s = sessionFrom(req);
       if (!s || s.typ !== 'session') return json(res, 401, { error: 'Please sign in first.' });
       try {
-        const portal = await stripe.billingPortal.sessions.create({ customer: s.cid, return_url: cfg.baseUrl + '/' });
+        if (!portalConfigId) {
+          const conf = await stripe.billingPortal.configurations.create({
+            business_profile: { headline: 'Excel Easy – manage your Premium subscription' },
+            features: {
+              subscription_cancel: { enabled: true, mode: 'at_period_end' },
+              payment_method_update: { enabled: true },
+              invoice_history: { enabled: true },
+              customer_update: { enabled: true, allowed_updates: ['email', 'address'] },
+            },
+          });
+          portalConfigId = conf.id;
+        }
+        const portal = await stripe.billingPortal.sessions.create({ customer: s.cid, configuration: portalConfigId, return_url: cfg.baseUrl + '/' });
         return json(res, 200, { url: portal.url });
       } catch (e) { console.error('portal error:', e.message); return json(res, 502, { error: 'Billing page unavailable.' }); }
     }
@@ -239,6 +261,13 @@ function makeEmailSender(env) {
   };
 }
 
+function intEnv(v, d) {
+  if (v === undefined || v === '') return d;
+  const n = Number(v);
+  if (!Number.isInteger(n) || n < 0) { console.error(`Invalid number in environment: ${v}`); process.exit(1); }
+  return n;
+}
+
 if (require.main === module) {
   const env = process.env;
   if (!env.STRIPE_SECRET_KEY) { console.error('STRIPE_SECRET_KEY is required. See README.md → "Going live".'); process.exit(1); }
@@ -251,7 +280,8 @@ if (require.main === module) {
   const app = createApp({
     stripe,
     sendEmail: makeEmailSender(env),
-    config: { secret: env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'), baseUrl, priceId: env.STRIPE_PRICE_ID || '', tax: env.STRIPE_TAX === '1' },
+    config: { secret: env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'), baseUrl, tax: env.STRIPE_TAX === '1',
+      trialDays: intEnv(env.TRIAL_DAYS, 7), monthlyPence: intEnv(env.MONTHLY_PRICE_PENCE, 500), yearlyPence: intEnv(env.YEARLY_PRICE_PENCE, 5000) },
   });
   const port = Number(env.PORT) || 3000;
   http.createServer(app).listen(port, () => console.log(`Excel Easy running at ${baseUrl} (port ${port})`));

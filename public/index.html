@@ -46,9 +46,13 @@
       <a href="#fix" class="card link" data-go="fix"><h3>🛠 Something went wrong?</h3><p>Check a formula or decode a scary error message.</p></a>
     </div>
     <div class="card pricing paywall" id="pricing">
-      <h3>Premium – £5 a month</h3>
-      <ul class="ticks"><li>All 11 lessons (3 are free)</li><li>Formula builder – no typing formulas by hand</li><li>Practice sheet with mini challenges</li><li>Formula checker that explains your mistakes</li><li>Cancel any time, no questions asked</li></ul>
-      <button class="primary" data-upgrade>Go Premium – £5/month</button>
+      <h3>Premium</h3>
+      <p class="trialnote" data-trial-line>🎁 <b>Try it free for <span data-trial>7</span> days.</b> Cancel before the trial ends and you pay nothing.</p>
+      <ul class="ticks"><li>All 11 lessons (3 are free)</li><li>Formula builder – no typing formulas by hand</li><li>Practice sheet with mini challenges</li><li>Formula checker that explains your mistakes</li><li>Monthly or yearly – cancel any time, no questions asked</li></ul>
+      <div class="plans">
+        <button type="button" class="plan" data-plan="monthly"><b>Monthly</b><span class="big" data-price="monthly">£5</span><span class="muted">per month</span></button>
+        <button type="button" class="plan best" data-plan="yearly"><span class="badge" data-saving>Save £10</span><b>Yearly</b><span class="big" data-price="yearly">£50</span><span class="muted">per year</span></button>
+      </div>
     </div>
     <div class="card reassure">
       <h3>Three things to remember</h3>
@@ -71,8 +75,8 @@
     <p class="muted">Pick what you want to do, fill in the boxes, and get a ready-to-paste formula with a plain-English explanation.</p>
     <div class="card paywall">
       <h3>🔒 The formula builder is part of Premium</h3>
-      <p>Fill in a few boxes and get a ready-to-paste formula with a plain-English explanation. Premium is <b>£5 a month</b>. Cancel any time in two clicks.</p>
-      <button class="primary" data-upgrade>Go Premium – £5/month</button> <button class="ghost" data-signin>Already subscribed? Sign in</button>
+      <p>Fill in a few boxes and get a ready-to-paste formula with a plain-English explanation. <span data-trial-line>Try it free for <span data-trial>7</span> days, then </span><b><span data-price="monthly">£5</span> a month</b> or <b><span data-price="yearly">£50</span> a year</b>. Cancel any time in two clicks.</p>
+      <button class="primary" data-upgrade data-cta>Start free trial</button> <button class="ghost" data-signin>Already subscribed? Sign in</button>
     </div>
     <div class="card builder premium-only" hidden>
       <label for="bsel"><b>1.</b> What do you want to do?</label>
@@ -96,8 +100,8 @@
     <p class="muted">A safe mini-spreadsheet. Nothing here can hurt anything. Click a cell and type. Start a formula with <code>=</code>.</p>
     <div class="card paywall">
       <h3>🔒 The practice sheet is part of Premium</h3>
-      <p>A safe mini-spreadsheet with a real formula engine, explanations for every cell, undo, and mini challenges. Premium is <b>£5 a month</b>. Cancel any time in two clicks.</p>
-      <button class="primary" data-upgrade>Go Premium – £5/month</button> <button class="ghost" data-signin>Already subscribed? Sign in</button>
+      <p>A safe mini-spreadsheet with a real formula engine, explanations for every cell, undo, and mini challenges. <span data-trial-line>Try it free for <span data-trial>7</span> days, then </span><b><span data-price="monthly">£5</span> a month</b> or <b><span data-price="yearly">£50</span> a year</b>. Cancel any time in two clicks.</p>
+      <button class="primary" data-upgrade data-cta>Start free trial</button> <button class="ghost" data-signin>Already subscribed? Sign in</button>
     </div>
     <div class="card premium-only" hidden>
       <div class="sheetbar">
@@ -121,8 +125,8 @@
     <h2>Fix a problem</h2>
 <div class="card paywall">
       <h3>🔒 The formula checker is part of Premium</h3>
-      <p>Paste a formula that is not working and get plain-English pointers to the mistake. Premium is <b>£5 a month</b>. Cancel any time in two clicks.</p>
-      <button class="primary" data-upgrade>Go Premium – £5/month</button> <button class="ghost" data-signin>Already subscribed? Sign in</button>
+      <p>Paste a formula that is not working and get plain-English pointers to the mistake. <span data-trial-line>Try it free for <span data-trial>7</span> days, then </span><b><span data-price="monthly">£5</span> a month</b> or <b><span data-price="yearly">£50</span> a year</b>. Cancel any time in two clicks.</p>
+      <button class="primary" data-upgrade data-cta>Start free trial</button> <button class="ghost" data-signin>Already subscribed? Sign in</button>
     </div>
     <div class="card premium-only" hidden>
       <h3>Formula checker</h3>
@@ -150,6 +154,16 @@
 </main>
 
 <footer class="wrap foot"><p><a href="/terms.html">Terms</a> · <a href="/privacy.html">Privacy</a> · Your lesson progress is stored only on this device. “Excel” is a trademark of Microsoft; this is an independent learning aid.</p></footer>
+<dialog id="planDlg" aria-labelledby="pth">
+  <h3 id="pth">Choose your plan</h3>
+  <p data-trial-line>🎁 Everything is free for <b><span data-trial>7</span> days</b>. You won’t be charged until the trial ends, and you can cancel before then in two clicks.</p>
+  <div class="plans">
+        <button type="button" class="plan" data-plan="monthly"><b>Monthly</b><span class="big" data-price="monthly">£5</span><span class="muted">per month</span></button>
+        <button type="button" class="plan best" data-plan="yearly"><span class="badge" data-saving>Save £10</span><b>Yearly</b><span class="big" data-price="yearly">£50</span><span class="muted">per year</span></button>
+      </div>
+  <p class="muted small">Payment is handled securely by Stripe. You can cancel any time from “Manage subscription”. You keep Premium until the end of the period you’ve paid for.</p>
+  <div class="dlgbtns"><button type="button" id="planClose" class="ghost">Close</button></div>
+</dialog>
 <dialog id="signinDlg" aria-labelledby="sth">
   <form id="signinForm" method="dialog">
     <h3 id="sth">Sign in</h3>

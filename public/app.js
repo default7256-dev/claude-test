@@ -88,7 +88,7 @@
     $('#lessons').innerHTML = D.LESSONS.map((l, i) => {
       if (l.locked) {
         return `<details class="lesson locked" id="lesson-${l.id}"><summary><span class="num">🔒</span>${esc(l.title)}<span class="mins">${l.mins} min · Premium</span></summary>
-          <div class="body"><p>This lesson is part of Premium.</p><button class="primary" data-upgrade>Unlock all lessons – £5/month</button></div></details>`;
+          <div class="body"><p>This lesson is part of Premium.</p><button class="primary" data-upgrade>Unlock all lessons</button></div></details>`;
       }
       return `
       <details class="lesson ${doneSet.has(l.id) ? 'done' : ''}" id="lesson-${l.id}">
@@ -157,7 +157,8 @@
     $$('.paywall').forEach((el) => { el.hidden = on; });
     $('#acct').innerHTML = on
       ? `<span class="pill">⭐ Premium</span><button class="ghost" id="manage">Manage subscription</button><button class="ghost" id="logout">Sign out</button>`
-      : `<button class="ghost" id="signin">Sign in</button><button class="primary small" data-upgrade>Go Premium · £5/mo</button>`;
+      : `<button class="ghost" id="signin">Sign in</button><button class="primary small" data-upgrade data-cta>Start free trial</button>`;
+    if (typeof applyPlans === 'function') applyPlans();
   }
   async function refreshAccount() {
     const me = await api('/api/me').catch(() => ({ ok: false, body: null }));
@@ -166,14 +167,28 @@
     if (on) { try { await loadPremiumScript(); } catch (e) { toast(e.message); } }
     else { C.premiumReady = false; }
   }
-  async function startCheckout() {
+  let plans = { trialDays: 7, monthly: 500, yearly: 5000 };
+  const gbp = (p) => '£' + (p % 100 ? (p / 100).toFixed(2) : String(p / 100));
+  function applyPlans() {
+    $$('[data-price]').forEach((el) => { el.textContent = gbp(plans[el.dataset.price]); });
+    $$('[data-trial]').forEach((el) => { el.textContent = plans.trialDays; });
+    $$('[data-trial-line]').forEach((el) => { el.hidden = !(plans.trialDays > 0); });
+    $$('[data-cta]').forEach((el) => { el.textContent = plans.trialDays > 0 ? `Start ${plans.trialDays}-day free trial` : 'Go Premium'; });
+    const saving = plans.monthly * 12 - plans.yearly;
+    $$('[data-saving]').forEach((el) => { el.hidden = saving <= 0; el.textContent = `Save ${gbp(saving)}`; });
+  }
+  api('/api/plans').then((r) => { if (r.ok && r.body) { plans = r.body; applyPlans(); } }).catch(() => {});
+  async function startCheckout(plan) {
     toast('Taking you to secure checkout…');
-    const r = await api('/api/checkout', { method: 'POST', body: '{}' });
+    const r = await api('/api/checkout', { method: 'POST', body: JSON.stringify({ plan }) });
     if (r.ok && r.body && r.body.url) location.href = r.body.url;
     else toast((r.body && r.body.error) || 'Sorry, checkout is unavailable right now. Please try again later.');
   }
   document.addEventListener('click', async (e) => {
-    if (e.target.closest('[data-upgrade]')) startCheckout();
+    if (e.target.closest('[data-upgrade]')) $('#planDlg').showModal();
+    const pl = e.target.closest('[data-plan]');
+    if (pl) { $$('[data-plan]').forEach((b) => { b.disabled = true; }); await startCheckout(pl.dataset.plan); $$('[data-plan]').forEach((b) => { b.disabled = false; }); }
+    if (e.target.closest('#planClose')) $('#planDlg').close();
     if (e.target.closest('#signin, [data-signin]')) { $('#signinDlg').showModal(); $('#semail').focus(); }
     if (e.target.closest('#manage')) {
       const r = await api('/api/portal', { method: 'POST', body: '{}' });

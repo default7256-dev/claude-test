@@ -17,7 +17,7 @@ function fakeStripe() {
     },
   });
 }
-async function start(stripeState, sent = []) {
+async function start(stripeState, sent = [], config = {}) {
   const st = stripeState;
   const stripe = {
     customers: st.customers_,
@@ -26,10 +26,13 @@ async function start(stripeState, sent = []) {
       create: async (p) => { st.created.push(p); return { url: 'https://checkout.stripe.test/pay' }; },
       retrieve: async (id) => { if (!st.sessions[id]) throw new Error('no such session'); return st.sessions[id]; },
     } },
-    billingPortal: { sessions: { create: async (p) => { st.portal.push(p); return { url: 'https://billing.stripe.test/p' }; } } },
+    billingPortal: {
+      configurations: { create: async (p) => { st.portalConfigs = (st.portalConfigs || 0) + 1; st.portalConf = p; return { id: 'bpc_1' }; } },
+      sessions: { create: async (p) => { st.portal.push(p); return { url: 'https://billing.stripe.test/p' }; } },
+    },
   };
   const secret = 'x'.repeat(40);
-  const app = createApp({ stripe, sendEmail: async (m) => sent.push(m), config: { secret, baseUrl: 'http://localhost' } });
+  const app = createApp({ stripe, sendEmail: async (m) => sent.push(m), config: Object.assign({ secret, baseUrl: 'http://localhost' }, config) });
   const server = http.createServer(app);
   await new Promise((r) => server.listen(0, r));
   const base = `http://localhost:${server.address().port}`;
@@ -80,7 +83,7 @@ test('premium.js requires an active subscription', async () => {
   } finally { await t.close(); }
 });
 
-test('checkout creates a £5 monthly GBP subscription session', async () => {
+test('checkout: monthly and yearly plans with a free trial', async () => {
   const st = fakeStripe(); const t = await start(st);
   try {
     const r = await req(t.base, '/api/checkout', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
@@ -92,6 +95,15 @@ test('checkout creates a £5 monthly GBP subscription session', async () => {
     assert.equal(p.line_items[0].price_data.unit_amount, 500);
     assert.equal(p.line_items[0].price_data.recurring.interval, 'month');
     assert.match(p.success_url, /session_id=\{CHECKOUT_SESSION_ID\}/);
+    assert.equal(p.subscription_data.trial_period_days, 7);
+    const y = await req(t.base, '/api/checkout', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ plan: 'yearly' }) });
+    assert.equal(y.status, 200);
+    const yp = st.created[1].line_items[0].price_data;
+    assert.deepEqual([yp.currency, yp.unit_amount, yp.recurring.interval], ['gbp', 5000, 'year']);
+    await req(t.base, '/api/checkout', { method: 'POST', body: JSON.stringify({ plan: 'lifetime-free' }) });
+    assert.equal(st.created[2].line_items[0].price_data.recurring.interval, 'month', 'unknown plans fall back to monthly');
+    const plans = await (await req(t.base, '/api/plans')).json();
+    assert.deepEqual(plans, { trialDays: 7, monthly: 500, yearly: 5000 });
     const evil = await req(t.base, '/api/checkout', { method: 'POST', headers: { origin: 'https://evil.example' }, body: '{}' });
     assert.equal(evil.status, 403);
   } finally { await t.close(); }
@@ -153,7 +165,33 @@ test('cancelled subscribers lose access once the cache expires; portal & logout 
     assert.equal((await req(t.base, '/api/portal', { method: 'POST', body: '{}' })).status, 401);
     const p = await req(t.base, '/api/portal', { method: 'POST', headers: { cookie: c }, body: '{}' });
     assert.equal((await p.json()).url, 'https://billing.stripe.test/p'); assert.equal(st.portal[0].customer, 'cus_sub');
+    assert.equal(st.portal[0].configuration, 'bpc_1');
+    assert.equal(st.portalConf.features.subscription_cancel.enabled, true);
+    await req(t.base, '/api/portal', { method: 'POST', headers: { cookie: c }, body: '{}' });
+    assert.equal(st.portalConfigs, 1, 'portal configuration is created once and reused');
     const out = await req(t.base, '/api/logout', { method: 'POST', body: '{}' });
     assert.match(out.headers.get('set-cookie'), /Max-Age=0/);
+  } finally { await t.close(); }
+});
+
+test('trial can be switched off and prices changed by config', async () => {
+  const st = fakeStripe(); const t = await start(st, [], { trialDays: 0, monthlyPence: 600, yearlyPence: 6000 });
+  try {
+    await req(t.base, '/api/checkout', { method: 'POST', body: '{}' });
+    assert.equal(st.created[0].subscription_data.trial_period_days, undefined);
+    assert.equal(st.created[0].line_items[0].price_data.unit_amount, 600);
+    assert.deepEqual(await (await req(t.base, '/api/plans')).json(), { trialDays: 0, monthly: 600, yearly: 6000 });
+  } finally { await t.close(); }
+});
+
+test('trialing subscribers get Premium; trial checkout (no payment yet) signs in', async () => {
+  const st = fakeStripe();
+  st.subs.cus_trial = [{ status: 'trialing' }];
+  st.sessions.cs_trial = { status: 'complete', payment_status: 'no_payment_required', customer: 'cus_trial' };
+  const t = await start(st);
+  try {
+    const r = await req(t.base, '/api/checkout/complete?session_id=cs_trial');
+    const c = cookieOf(r); assert.match(c, /^ee_session=/);
+    assert.equal((await req(t.base, '/api/premium.js', { headers: { cookie: c } })).status, 200);
   } finally { await t.close(); }
 });
