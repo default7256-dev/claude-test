@@ -1,6 +1,13 @@
 {
   "name": "excel-easy",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
-  "scripts": { "test": "node test/engine.test.js" }
+  "description": "Plain-English Excel helper with a £5/month Premium subscription",
+  "main": "server.js",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/engine.test.js test/server.test.js"
+  },
+  "dependencies": { "stripe": "^22.6.2" }
 }

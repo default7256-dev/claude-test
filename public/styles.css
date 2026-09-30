@@ -99,3 +99,15 @@ table.keys{border-collapse:collapse;width:100%;max-height:480px}.keys td{padding
 #toast.show{opacity:1;transform:translateX(-50%)}
 @media (max-width:560px){:root{--fs:17px}.top-row{padding-top:8px}.brand p{display:none}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+.acct{display:inline-flex;gap:8px;align-items:center;margin-right:6px;flex-wrap:wrap;justify-content:flex-end}
+button.small{padding:7px 12px;font-size:.85rem}
+.paywall{border:2px dashed var(--brand);background:var(--accent)}
+.pricing .ticks{list-style:none;padding:0;margin:.6em 0 1em}.ticks li::before{content:"✓ ";color:var(--brand);font-weight:700}
+.tools{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+details.lesson.locked summary{opacity:.8}
+dialog{border:1px solid var(--line);border-radius:14px;padding:20px;max-width:420px;width:calc(100% - 32px);background:var(--card);color:var(--ink)}
+dialog::backdrop{background:rgba(0,0,0,.5)}
+.dlgbtns{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+.foot a{color:inherit}
+.doc{max-width:720px;margin:0 auto;padding:24px 16px 60px}.doc h2{margin-top:1.4em}

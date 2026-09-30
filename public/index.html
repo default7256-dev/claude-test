@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Excel Easy – Learn Excel in plain English</title>
 <meta name="description" content="A friendly helper that explains Excel in plain English: lessons, a formula builder, a safe practice sheet and an error fixer.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -13,6 +14,7 @@
   <div class="wrap top-row">
     <div class="brand"><span class="logo" aria-hidden="true">✚</span><div><h1>Excel Easy</h1><p>Excel explained in plain English</p></div></div>
     <div class="tools">
+      <span id="acct" class="acct"></span>
       <button id="bigger" class="ghost" aria-label="Make text bigger" title="Bigger text">A+</button>
       <button id="smaller" class="ghost" aria-label="Make text smaller" title="Smaller text">A−</button>
     </div>
@@ -43,6 +45,11 @@
       <a href="#build" class="card link" data-go="build"><h3>🧩 Need a formula?</h3><p>Fill in a few boxes and we write it for you.</p></a>
       <a href="#fix" class="card link" data-go="fix"><h3>🛠 Something went wrong?</h3><p>Check a formula or decode a scary error message.</p></a>
     </div>
+    <div class="card pricing paywall" id="pricing">
+      <h3>Premium – £5 a month</h3>
+      <ul class="ticks"><li>All 11 lessons (3 are free)</li><li>Formula builder – no typing formulas by hand</li><li>Practice sheet with mini challenges</li><li>Formula checker that explains your mistakes</li><li>Cancel any time, no questions asked</li></ul>
+      <button class="primary" data-upgrade>Go Premium – £5/month</button>
+    </div>
     <div class="card reassure">
       <h3>Three things to remember</h3>
       <ol>
@@ -55,14 +62,19 @@
 
   <section id="tab-learn" class="panel" role="tabpanel" hidden>
     <h2>Lessons</h2>
-    <p class="muted">Go in order, or jump to what you need. Tick a lesson when you finish it. <span id="progress" class="pill"></span></p>
+    <p class="muted">The first three lessons are free. Go in order, or jump to what you need. Tick a lesson when you finish it. <span id="progress" class="pill"></span></p>
     <div id="lessons"></div>
   </section>
 
   <section id="tab-build" class="panel" role="tabpanel" hidden>
     <h2>Formula builder</h2>
     <p class="muted">Pick what you want to do, fill in the boxes, and get a ready-to-paste formula with a plain-English explanation.</p>
-    <div class="card builder">
+    <div class="card paywall">
+      <h3>🔒 The formula builder is part of Premium</h3>
+      <p>Fill in a few boxes and get a ready-to-paste formula with a plain-English explanation. Premium is <b>£5 a month</b>. Cancel any time in two clicks.</p>
+      <button class="primary" data-upgrade>Go Premium – £5/month</button> <button class="ghost" data-signin>Already subscribed? Sign in</button>
+    </div>
+    <div class="card builder premium-only" hidden>
       <label for="bsel"><b>1.</b> What do you want to do?</label>
       <select id="bsel"></select>
       <p id="bblurb" class="muted"></p>
@@ -82,7 +94,12 @@
   <section id="tab-practice" class="panel" role="tabpanel" hidden>
     <h2>Practice sheet</h2>
     <p class="muted">A safe mini-spreadsheet. Nothing here can hurt anything. Click a cell and type. Start a formula with <code>=</code>.</p>
-    <div class="card">
+    <div class="card paywall">
+      <h3>🔒 The practice sheet is part of Premium</h3>
+      <p>A safe mini-spreadsheet with a real formula engine, explanations for every cell, undo, and mini challenges. Premium is <b>£5 a month</b>. Cancel any time in two clicks.</p>
+      <button class="primary" data-upgrade>Go Premium – £5/month</button> <button class="ghost" data-signin>Already subscribed? Sign in</button>
+    </div>
+    <div class="card premium-only" hidden>
       <div class="sheetbar">
         <span class="namebox" id="namebox" aria-label="Selected cell">A1</span>
         <span class="fx" aria-hidden="true">fx</span>
@@ -94,7 +111,7 @@
       <div class="sheetwrap"><table id="grid" aria-label="Practice spreadsheet"></table></div>
       <div id="cellinfo" class="cellinfo" aria-live="polite"></div>
     </div>
-    <div class="card">
+    <div class="card premium-only" hidden>
       <h3>Mini challenges</h3>
       <ul id="challenges" class="challenges"></ul>
     </div>
@@ -102,7 +119,12 @@
 
   <section id="tab-fix" class="panel" role="tabpanel" hidden>
     <h2>Fix a problem</h2>
-    <div class="card">
+<div class="card paywall">
+      <h3>🔒 The formula checker is part of Premium</h3>
+      <p>Paste a formula that is not working and get plain-English pointers to the mistake. Premium is <b>£5 a month</b>. Cancel any time in two clicks.</p>
+      <button class="primary" data-upgrade>Go Premium – £5/month</button> <button class="ghost" data-signin>Already subscribed? Sign in</button>
+    </div>
+    <div class="card premium-only" hidden>
       <h3>Formula checker</h3>
       <p class="muted">Paste a formula that is not working. We will point out the most common mistakes in plain words.</p>
       <label for="chk" class="sr">Formula to check</label>
@@ -127,10 +149,19 @@
   </section>
 </main>
 
-<footer class="wrap foot"><p>Excel Easy works in your browser and stores nothing except your lesson progress on this device. “Excel” is a trademark of Microsoft; this is an independent learning aid.</p></footer>
+<footer class="wrap foot"><p><a href="/terms.html">Terms</a> · <a href="/privacy.html">Privacy</a> · Your lesson progress is stored only on this device. “Excel” is a trademark of Microsoft; this is an independent learning aid.</p></footer>
+<dialog id="signinDlg" aria-labelledby="sth">
+  <form id="signinForm" method="dialog">
+    <h3 id="sth">Sign in</h3>
+    <p class="muted">Enter the email you subscribed with. We’ll send you a one-time link – no password needed.</p>
+    <label for="semail" class="sr">Email address</label>
+    <input id="semail" type="email" required placeholder="you@example.com" autocomplete="email">
+    <p id="smsg" class="muted" aria-live="polite"></p>
+    <div class="dlgbtns"><button type="button" id="scancel" class="ghost">Close</button><button id="ssend" class="primary">Email me a link</button></div>
+  </form>
+</dialog>
 <div id="toast" role="status" aria-live="polite"></div>
 
-<script src="engine.js"></script>
 <script src="data.js"></script>
 <script src="app.js"></script>
 </body>

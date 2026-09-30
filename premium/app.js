@@ -1,112 +1,10 @@
 'use strict';
+/* Premium features: formula builder, practice sheet, formula checker, all lessons.
+   Served only to active subscribers by server.js (GET /api/premium.js). */
 (function () {
-  const E = window.ExcelEasy, D = window.EE_DATA;
-  const $ = (s, r = document) => r.querySelector(s);
-  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
-  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-
-  const store = {
-    get(k, d) { try { const v = localStorage.getItem('ee:' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
-    set(k, v) { try { localStorage.setItem('ee:' + k, JSON.stringify(v)); } catch (e) { /* storage unavailable: fine */ } },
-  };
-  let toastTimer;
-  function toast(msg) {
-    const t = $('#toast'); t.textContent = msg; t.classList.add('show');
-    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
-  }
-  function copy(text) {
-    const done = () => toast('Copied! Now paste it into Excel with Ctrl+V');
-    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(done, () => fallback());
-    else fallback();
-    function fallback() {
-      const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
-      document.body.appendChild(ta); ta.select();
-      try { document.execCommand('copy'); done(); } catch (e) { toast('Select the formula and press Ctrl+C to copy'); }
-      ta.remove();
-    }
-  }
-
-  /* ---------- Tabs ---------- */
-  function showTab(name, updateHash) {
-    if (!$('#tab-' + name)) name = 'home';
-    $$('.panel').forEach((p) => { p.hidden = p.id !== 'tab-' + name; });
-    $$('.tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
-    if (updateHash !== false) history.replaceState(null, '', '#' + name);
-    window.scrollTo({ top: 0 });
-  }
-  $$('.tabs button').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
-  $$('[data-go]').forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); showTab(a.dataset.go); }));
-
-  /* ---------- Text size ---------- */
-  let fs = store.get('fs', 18);
-  const applyFs = () => document.documentElement.style.setProperty('--fs', fs + 'px');
-  applyFs();
-  $('#bigger').addEventListener('click', () => { fs = Math.min(28, fs + 2); store.set('fs', fs); applyFs(); });
-  $('#smaller').addEventListener('click', () => { fs = Math.max(14, fs - 2); store.set('fs', fs); applyFs(); });
-
-  /* ---------- Ask: plain-English task finder ---------- */
-  const STOP = new Set('i a an the to of in on my me do how can want would like need make it and or is for with some get what'.split(' '));
-  const stem = (w) => w.replace(/(ing|ed|es|s)$/, '');
-  function score(task, words) {
-    const hay = (task.q + ' ' + task.kw).toLowerCase().split(/[^a-z0-9%$#]+/).map(stem);
-    const qset = task.q.toLowerCase();
-    let s = 0;
-    for (const w of words) {
-      if (hay.includes(stem(w))) s += 2;
-      else if (hay.some((h) => h.length > 3 && (h.startsWith(stem(w)) || stem(w).startsWith(h)) && stem(w).length > 2)) s += 1;
-      if (qset.includes(w)) s += 1;
-    }
-    return s;
-  }
-  function renderTask(t) {
-    const formula = t.formula ? `<div class="formula-row"><code>${esc(t.formula)}</code><button class="ghost" data-copy="${esc(t.formula)}">Copy</button><button class="ghost" data-try="${esc(t.formula)}">Try it →</button></div>` : '';
-    return `<article class="answer"><h3>${esc(t.q)}</h3>${formula}<ol>${t.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>${t.tip ? `<div class="tip">💡 ${esc(t.tip)}</div>` : ''}</article>`;
-  }
-  function renderAnswers() {
-    const q = $('#ask').value.trim().toLowerCase();
-    const out = $('#answers');
-    if (!q) { out.innerHTML = ''; return; }
-    const words = q.split(/[^a-z0-9%$#]+/).filter((w) => w && !STOP.has(w));
-    const ranked = D.TASKS.map((t) => ({ t, s: score(t, words) })).filter((x) => x.s > 0).sort((a, b) => b.s - a.s).slice(0, 3);
-    out.innerHTML = ranked.length
-      ? ranked.map((x) => renderTask(x.t)).join('')
-      : `<div class="answer"><h3>Hmm, I’m not sure yet</h3><p>Try different words (for example “total” instead of “sum up”), or pick one of the ideas above. You can also browse the <a href="#learn" data-go="learn">lessons</a>.</p></div>`;
-  }
-  $('#ask').addEventListener('input', renderAnswers);
-  $('#chips').innerHTML = ['Add up a column of numbers', 'Find the average', 'Copy a formula down the whole column', 'Sort my data A to Z', 'Make a chart', 'Undo a mistake', 'Show one thing if true, another if not', 'Look up a value from a table', 'Remove duplicates']
-    .map((t) => `<button type="button">${esc(t)}</button>`).join('');
-  $('#chips').addEventListener('click', (e) => { if (e.target.tagName === 'BUTTON') { $('#ask').value = e.target.textContent; renderAnswers(); $('#answers').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } });
-  document.addEventListener('click', (e) => {
-    const c = e.target.closest('[data-copy]'); if (c) copy(c.dataset.copy);
-    const t = e.target.closest('[data-try]'); if (t) tryInSheet(t.dataset.try);
-    const g = e.target.closest('a[data-go]'); if (g) { e.preventDefault(); showTab(g.dataset.go); }
-  });
-
-  /* ---------- Lessons ---------- */
-  let doneSet = new Set(store.get('done', []));
-  function renderLessons() {
-    $('#lessons').innerHTML = D.LESSONS.map((l, i) => `
-      <details class="lesson ${doneSet.has(l.id) ? 'done' : ''}" id="lesson-${l.id}">
-        <summary><span class="num">${doneSet.has(l.id) ? '✓' : i + 1}</span>${esc(l.title)}<span class="mins">${l.mins} min</span></summary>
-        <div class="body">
-          <p>${l.intro}</p>
-          <ol>${l.steps.map((s) => `<li>${s}</li>`).join('')}</ol>
-          ${l.practice ? `<p class="tip">🧪 ${esc(l.practice)} ${l.example ? `<button class="ghost" data-try="${esc(l.example)}">Try it →</button>` : ''}</p>` : ''}
-          <label class="doneRow"><input type="checkbox" data-done="${l.id}" ${doneSet.has(l.id) ? 'checked' : ''}> I’ve finished this lesson</label>
-        </div>
-      </details>`).join('');
-    $('#progress').textContent = `${doneSet.size} of ${D.LESSONS.length} done`;
-  }
-  $('#lessons').addEventListener('change', (e) => {
-    const id = e.target.dataset.done; if (!id) return;
-    e.target.checked ? doneSet.add(id) : doneSet.delete(id);
-    store.set('done', [...doneSet]);
-    const open = $$('details.lesson[open]').map((d) => d.id);
-    renderLessons();
-    open.forEach((i) => { const d = document.getElementById(i); if (d) d.open = true; });
-    if (doneSet.size === D.LESSONS.length) toast('🎉 You finished every lesson!');
-  });
-  renderLessons();
+  const C = window.EE_CORE, E = window.ExcelEasy, P = window.EE_PREMIUM;
+  const { $, $$, esc, toast, copy, showTab, store } = C;
+  const D = { BUILDER: P.BUILDER, SAMPLE: P.SAMPLE, CHALLENGES: P.CHALLENGES };
 
   /* ---------- Formula builder ---------- */
   const bsel = $('#bsel');
@@ -241,27 +139,16 @@
   }
   paint();
 
-  /* ---------- Fix a problem ---------- */
+
   $('#chk').addEventListener('input', (e) => {
     const r = E.checkFormula(e.target.value);
     $('#chkout').innerHTML = e.target.value.trim()
       ? r.tips.map((t) => `<div class="tipbox ${r.ok ? '' : 'bad'}">${r.ok ? '✅' : '⚠️'} ${esc(t)}</div>`).join('')
       : '';
   });
-  function renderErrors() {
-    const q = $('#errq').value.trim().toLowerCase();
-    const list = D.ERRORS.filter((x) => !q || (x.code + ' ' + x.what + ' ' + x.fix).toLowerCase().includes(q));
-    $('#errors').innerHTML = list.length ? list.map((x) => `<div class="errcard"><span class="code">${esc(x.code)}</span><p><b>What it means:</b> ${esc(x.what)}</p><p><b>How to fix it:</b> ${esc(x.fix)}</p></div>`).join('') : '<p class="muted">No match. Try another word.</p>';
-  }
-  $('#errq').addEventListener('input', renderErrors); renderErrors();
-
-  /* ---------- Words & shortcuts ---------- */
-  function renderGloss() {
-    const q = $('#gq').value.trim().toLowerCase();
-    $('#gloss').innerHTML = D.GLOSSARY.filter(([w, d]) => !q || (w + ' ' + d).toLowerCase().includes(q)).map(([w, d]) => `<dt>${esc(w)}</dt><dd>${esc(d)}</dd>`).join('') || '<dd>No match.</dd>';
-  }
-  $('#gq').addEventListener('input', renderGloss); renderGloss();
-  $('#keys').innerHTML = D.SHORTCUTS.map(([k, d]) => `<tr><td><kbd>${esc(k)}</kbd></td><td>${esc(d)}</td></tr>`).join('');
-
-  showTab((location.hash || '#home').slice(1), false);
+  /* full lesson list replaces the locked stubs */
+  C.data.LESSONS = P.LESSONS;
+  C.renderLessons();
+  C.tryInSheet = tryInSheet;
+  C.premiumReady = true;
 })();

@@ -1,6 +1,6 @@
 'use strict';
 const assert = require('assert');
-const E = require('../engine.js');
+const E = require('../premium/engine.js');
 
 function sheet(cells) {
   const s = new E.Sheet(8, 20);
