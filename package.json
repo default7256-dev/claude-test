@@ -1,0 +1,6 @@
+{
+  "name": "excel-easy",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": { "test": "node test/engine.test.js" }
+}

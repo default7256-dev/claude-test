@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Excel Easy – Learn Excel in plain English</title>
+<meta name="description" content="A friendly helper that explains Excel in plain English: lessons, a formula builder, a safe practice sheet and an error fixer.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <div class="wrap top-row">
+    <div class="brand"><span class="logo" aria-hidden="true">✚</span><div><h1>Excel Easy</h1><p>Excel explained in plain English</p></div></div>
+    <div class="tools">
+      <button id="bigger" class="ghost" aria-label="Make text bigger" title="Bigger text">A+</button>
+      <button id="smaller" class="ghost" aria-label="Make text smaller" title="Smaller text">A−</button>
+    </div>
+  </div>
+  <nav class="wrap tabs" role="tablist" aria-label="Sections">
+    <button role="tab" data-tab="home" aria-selected="true">🏠 Start here</button>
+    <button role="tab" data-tab="learn" aria-selected="false">📚 Lessons</button>
+    <button role="tab" data-tab="build" aria-selected="false">🧩 Formula builder</button>
+    <button role="tab" data-tab="practice" aria-selected="false">🧪 Practice sheet</button>
+    <button role="tab" data-tab="fix" aria-selected="false">🛠 Fix a problem</button>
+    <button role="tab" data-tab="words" aria-selected="false">📖 Words &amp; shortcuts</button>
+  </nav>
+</header>
+
+<main id="main" class="wrap">
+
+  <section id="tab-home" class="panel" role="tabpanel">
+    <div class="hero card">
+      <h2>What do you want to do in Excel?</h2>
+      <p class="muted">Type it in your own words, like <em>“add up a column”</em>, <em>“make a chart”</em> or <em>“remove duplicates”</em>. No Excel words needed.</p>
+      <label for="ask" class="sr">What do you want to do?</label>
+      <input id="ask" type="search" placeholder="I want to…" autocomplete="off">
+      <div id="chips" class="chips" aria-label="Popular questions"></div>
+      <div id="answers"></div>
+    </div>
+    <div class="grid3">
+      <a href="#learn" class="card link" data-go="learn"><h3>📚 New to Excel?</h3><p>Start with short lessons. Each takes 3–4 minutes.</p></a>
+      <a href="#build" class="card link" data-go="build"><h3>🧩 Need a formula?</h3><p>Fill in a few boxes and we write it for you.</p></a>
+      <a href="#fix" class="card link" data-go="fix"><h3>🛠 Something went wrong?</h3><p>Check a formula or decode a scary error message.</p></a>
+    </div>
+    <div class="card reassure">
+      <h3>Three things to remember</h3>
+      <ol>
+        <li><b>You cannot break it.</b> Press <kbd>Ctrl</kbd>+<kbd>Z</kbd> (<kbd>Cmd</kbd>+<kbd>Z</kbd> on Mac) to undo almost anything.</li>
+        <li><b>Formulas start with <code>=</code>.</b> Without it, Excel just sees plain text.</li>
+        <li><b>Save often</b> with <kbd>Ctrl</kbd>+<kbd>S</kbd>.</li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="tab-learn" class="panel" role="tabpanel" hidden>
+    <h2>Lessons</h2>
+    <p class="muted">Go in order, or jump to what you need. Tick a lesson when you finish it. <span id="progress" class="pill"></span></p>
+    <div id="lessons"></div>
+  </section>
+
+  <section id="tab-build" class="panel" role="tabpanel" hidden>
+    <h2>Formula builder</h2>
+    <p class="muted">Pick what you want to do, fill in the boxes, and get a ready-to-paste formula with a plain-English explanation.</p>
+    <div class="card builder">
+      <label for="bsel"><b>1.</b> What do you want to do?</label>
+      <select id="bsel"></select>
+      <p id="bblurb" class="muted"></p>
+      <div id="bfields"></div>
+      <div class="result">
+        <div class="label"><b>2.</b> Your formula</div>
+        <div class="formula-row"><code id="bformula" aria-live="polite"></code><button id="bcopy" class="primary">Copy</button></div>
+        <p id="bexplain" class="explain"></p>
+        <p id="bafter" class="muted"></p>
+        <div class="label"><b>3.</b> How to use it</div>
+        <ol class="howto"><li>Click the cell in Excel where you want the answer.</li><li>Press <kbd>Ctrl</kbd>+<kbd>V</kbd> to paste, then press <kbd>Enter</kbd>.</li><li>Change the cell names to match your own sheet if needed.</li></ol>
+        <button id="btry" class="ghost">Try it in the practice sheet →</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-practice" class="panel" role="tabpanel" hidden>
+    <h2>Practice sheet</h2>
+    <p class="muted">A safe mini-spreadsheet. Nothing here can hurt anything. Click a cell and type. Start a formula with <code>=</code>.</p>
+    <div class="card">
+      <div class="sheetbar">
+        <span class="namebox" id="namebox" aria-label="Selected cell">A1</span>
+        <span class="fx" aria-hidden="true">fx</span>
+        <input id="fbar" type="text" aria-label="Formula bar" autocomplete="off" spellcheck="false">
+        <button id="undo" class="ghost">↶ Undo</button>
+        <button id="reset" class="ghost">Reset example</button>
+        <button id="clear" class="ghost">Clear all</button>
+      </div>
+      <div class="sheetwrap"><table id="grid" aria-label="Practice spreadsheet"></table></div>
+      <div id="cellinfo" class="cellinfo" aria-live="polite"></div>
+    </div>
+    <div class="card">
+      <h3>Mini challenges</h3>
+      <ul id="challenges" class="challenges"></ul>
+    </div>
+  </section>
+
+  <section id="tab-fix" class="panel" role="tabpanel" hidden>
+    <h2>Fix a problem</h2>
+    <div class="card">
+      <h3>Formula checker</h3>
+      <p class="muted">Paste a formula that is not working. We will point out the most common mistakes in plain words.</p>
+      <label for="chk" class="sr">Formula to check</label>
+      <input id="chk" type="text" placeholder="=SUM(A1:A5" autocomplete="off" spellcheck="false">
+      <div id="chkout" aria-live="polite"></div>
+    </div>
+    <div class="card">
+      <h3>Error decoder</h3>
+      <p class="muted">Seen something odd in a cell? Find it here.</p>
+      <label for="errq" class="sr">Search errors</label>
+      <input id="errq" type="search" placeholder="Search, e.g. #REF! or ####" autocomplete="off">
+      <div id="errors"></div>
+    </div>
+  </section>
+
+  <section id="tab-words" class="panel" role="tabpanel" hidden>
+    <h2>Words &amp; shortcuts</h2>
+    <div class="grid2">
+      <div class="card"><h3>What does that word mean?</h3><label for="gq" class="sr">Search words</label><input id="gq" type="search" placeholder="Search words…" autocomplete="off"><dl id="gloss"></dl></div>
+      <div class="card"><h3>Handy keyboard shortcuts</h3><p class="muted">Mac users: use <kbd>Cmd</kbd> instead of <kbd>Ctrl</kbd>.</p><table class="keys" id="keys"></table></div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap foot"><p>Excel Easy works in your browser and stores nothing except your lesson progress on this device. “Excel” is a trademark of Microsoft; this is an independent learning aid.</p></footer>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script src="engine.js"></script>
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
