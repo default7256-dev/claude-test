@@ -39,7 +39,7 @@ function verify(secret, token) {
 
 function createApp(opts) {
   const { stripe, sendEmail } = opts;
-  const cfg = Object.assign({ publicDir: path.join(__dirname, 'public'), premiumDir: path.join(__dirname, 'premium'), tax: false, baseUrl: 'http://localhost:3000', trialDays: 7, monthlyPence: 500, yearlyPence: 5000 }, opts.config);
+  const cfg = Object.assign({ publicDir: path.join(__dirname, 'public'), premiumDir: path.join(__dirname, 'premium'), tax: false, baseUrl: 'http://localhost:3000', trialDays: 7, monthlyPence: 500, yearlyPence: 5000, reminderDays: 2 }, opts.config);
   const PLANS = { monthly: { interval: 'month', pence: cfg.monthlyPence }, yearly: { interval: 'year', pence: cfg.yearlyPence } };
   let portalConfigId = null; // created through the API on first use, so no Stripe dashboard setup is needed
   if (!cfg.secret) throw new Error('config.secret is required');
@@ -47,6 +47,22 @@ function createApp(opts) {
   const subCache = new Map(); // customerId -> { ok, at }
   const hits = new Map();     // ip -> [timestamps] (login rate limit)
   let premiumBundle = null;
+
+  async function openPortal(customerId) {
+    if (!portalConfigId) {
+      const conf = await stripe.billingPortal.configurations.create({
+        business_profile: { headline: 'Excel Easy – manage your Premium subscription' },
+        features: {
+          subscription_cancel: { enabled: true, mode: 'at_period_end' },
+          payment_method_update: { enabled: true },
+          invoice_history: { enabled: true },
+          customer_update: { enabled: true, allowed_updates: ['email', 'address'] },
+        },
+      });
+      portalConfigId = conf.id;
+    }
+    return stripe.billingPortal.sessions.create({ customer: customerId, configuration: portalConfigId, return_url: cfg.baseUrl + '/' });
+  }
 
   const isActive = (s) => s.status === 'active' || s.status === 'trialing';
   async function hasActiveSub(customerId) {
@@ -131,7 +147,7 @@ function createApp(opts) {
     }
 
     if (route === 'GET /api/plans') {
-      return json(res, 200, { trialDays: cfg.trialDays, monthly: cfg.monthlyPence, yearly: cfg.yearlyPence });
+      return json(res, 200, { trialDays: cfg.trialDays, monthly: cfg.monthlyPence, yearly: cfg.yearlyPence, reminderDays: cfg.reminderDays });
     }
 
     if (route === 'POST /api/checkout') {
@@ -186,7 +202,12 @@ function createApp(opts) {
         const cust = await findSubscriberByEmail(email);
         if (cust) {
           const tok = sign(cfg.secret, { typ: 'login', cid: cust.id, exp: Date.now() + LOGIN_MINUTES * 60000 });
-          await sendEmail({ to: email, link: `${cfg.baseUrl}/api/login/verify?token=${encodeURIComponent(tok)}` });
+          const link = `${cfg.baseUrl}/api/login/verify?token=${encodeURIComponent(tok)}`;
+          await sendEmail({
+            to: email,
+            subject: 'Your Excel Easy sign-in link',
+            text: `Click to sign in to Excel Easy (valid for ${LOGIN_MINUTES} minutes):\n\n${link}\n\nIf you didn't ask for this, you can ignore this email.`,
+          });
         }
       } catch (e) { console.error('login error:', e.message); }
       return json(res, 200, { ok: true });
@@ -206,28 +227,80 @@ function createApp(opts) {
       const s = sessionFrom(req);
       if (!s || s.typ !== 'session') return json(res, 401, { error: 'Please sign in first.' });
       try {
-        if (!portalConfigId) {
-          const conf = await stripe.billingPortal.configurations.create({
-            business_profile: { headline: 'Excel Easy – manage your Premium subscription' },
-            features: {
-              subscription_cancel: { enabled: true, mode: 'at_period_end' },
-              payment_method_update: { enabled: true },
-              invoice_history: { enabled: true },
-              customer_update: { enabled: true, allowed_updates: ['email', 'address'] },
-            },
-          });
-          portalConfigId = conf.id;
-        }
-        const portal = await stripe.billingPortal.sessions.create({ customer: s.cid, configuration: portalConfigId, return_url: cfg.baseUrl + '/' });
+        const portal = await openPortal(s.cid);
         return json(res, 200, { url: portal.url });
       } catch (e) { console.error('portal error:', e.message); return json(res, 502, { error: 'Billing page unavailable.' }); }
     }
 
+    if (route === 'GET /api/manage') {
+      // One-click link from the trial reminder email: straight to Stripe's cancel/billing page.
+      const p = verify(cfg.secret, url.searchParams.get('token'));
+      if (!p || p.typ !== 'manage') return redirect(res, '/?signin=failed#home');
+      try { return redirect(res, (await openPortal(p.cid)).url); } catch (e) { console.error('manage link error:', e.message); return redirect(res, '/?signin=failed#home'); }
+    }
     if (route === 'POST /api/logout') { clearSession(res); return json(res, 200, { ok: true }); }
     return json(res, 404, { error: 'Not found' });
   }
 
-  return async function handler(req, res) {
+  /* ---------- Trial-ending reminder emails ----------
+   * Runs hourly. Finds trials ending within cfg.reminderDays, emails the customer once
+   * (price, date, one-click cancel link), then records `trial_reminder_sent` in the
+   * subscription's Stripe metadata so it is never sent twice. No database or webhook needed. */
+  const londonDate = (sec) => new Date(sec * 1000).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/London' }).replace(',', '');
+  const money = (pence) => '£' + (pence / 100).toFixed(2);
+  function reminderEmail(sub, email) {
+    const item = sub.items && sub.items.data && sub.items.data[0];
+    const price = item && item.price;
+    const interval = (price && price.recurring && price.recurring.interval) || (sub.metadata && sub.metadata.plan === 'yearly' ? 'year' : 'month');
+    const pence = price && Number.isInteger(price.unit_amount) ? price.unit_amount : (interval === 'year' ? cfg.yearlyPence : cfg.monthlyPence);
+    const when = londonDate(sub.trial_end);
+    const tok = sign(cfg.secret, { typ: 'manage', cid: typeof sub.customer === 'string' ? sub.customer : sub.customer.id, exp: (sub.trial_end + 7 * 86400) * 1000 });
+    const manage = `${cfg.baseUrl}/api/manage?token=${encodeURIComponent(tok)}`;
+    return {
+      to: email,
+      subject: `Your Excel Easy free trial ends on ${when}`,
+      text: [
+        'Hello,',
+        '',
+        `Just a reminder: your free Excel Easy Premium trial ends on ${when}.`,
+        '',
+        `If you do nothing, your ${interval === 'year' ? 'yearly' : 'monthly'} plan will start then and your card will be charged ${money(pence)} per ${interval}, renewing every ${interval} until you cancel.`,
+        '',
+        'Happy with Excel Easy? You don’t need to do anything.',
+        '',
+        'Don’t want to continue? Cancel before your trial ends and you won’t pay anything:',
+        manage,
+        '',
+        '(That link opens your secure Stripe billing page. You can also sign in on the site and choose “Manage subscription”.)',
+        '',
+        'Thanks for trying Excel Easy!',
+      ].join('\n'),
+    };
+  }
+  async function runTrialReminders(nowMs = Date.now()) {
+    const result = { sent: 0, skipped: 0, failed: 0 };
+    if (!(cfg.reminderDays > 0)) return result;
+    const now = Math.floor(nowMs / 1000), horizon = now + cfg.reminderDays * 86400;
+    let startingAfter;
+    for (let page = 0; page < 50; page++) {
+      const list = await stripe.subscriptions.list(Object.assign({ status: 'trialing', limit: 100, expand: ['data.customer'] }, startingAfter ? { starting_after: startingAfter } : {}));
+      for (const sub of list.data) {
+        const due = sub.trial_end && sub.trial_end > now && sub.trial_end <= horizon;
+        const email = sub.customer && typeof sub.customer === 'object' ? sub.customer.email : null;
+        if (!due || sub.cancel_at_period_end || sub.cancel_at || (sub.metadata && sub.metadata.trial_reminder_sent) || !email) { result.skipped++; continue; }
+        try {
+          await sendEmail(reminderEmail(sub, email));
+          await stripe.subscriptions.update(sub.id, { metadata: { trial_reminder_sent: new Date(nowMs).toISOString() } });
+          result.sent++;
+        } catch (e) { result.failed++; console.error(`trial reminder failed for ${sub.id}:`, e.message); }
+      }
+      if (!list.has_more || !list.data.length) break;
+      startingAfter = list.data[list.data.length - 1].id;
+    }
+    return result;
+  }
+
+  async function handler(req, res) {
     baseHeaders(res);
     try {
       const url = new URL(req.url, cfg.baseUrl);
@@ -240,21 +313,23 @@ function createApp(opts) {
       if (!res.headersSent) res.statusCode = 500;
       res.end('Server error');
     }
-  };
+  }
+  handler.runTrialReminders = runTrialReminders;
+  return handler;
 }
 
 /* Sends the sign-in email through Resend's HTTP API. Without an API key (local development) the link is logged instead. */
 function makeEmailSender(env) {
-  return async function sendEmail({ to, link }) {
-    if (!env.RESEND_API_KEY) { console.log(`[dev] sign-in link for ${to}: ${link}`); return; }
+  return async function sendEmail({ to, subject, text }) {
+    if (!env.RESEND_API_KEY) { console.log(`[dev] email to ${to}: ${subject}\n${text}\n`); return; }
     const r = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         from: env.EMAIL_FROM || 'Excel Easy <onboarding@resend.dev>',
         to: [to],
-        subject: 'Your Excel Easy sign-in link',
-        text: `Click to sign in to Excel Easy (valid for ${LOGIN_MINUTES} minutes):\n\n${link}\n\nIf you didn't ask for this, you can ignore this email.`,
+        subject,
+        text,
       }),
     });
     if (!r.ok) throw new Error('email provider error ' + r.status);
@@ -281,10 +356,18 @@ if (require.main === module) {
     stripe,
     sendEmail: makeEmailSender(env),
     config: { secret: env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'), baseUrl, tax: env.STRIPE_TAX === '1',
-      trialDays: intEnv(env.TRIAL_DAYS, 7), monthlyPence: intEnv(env.MONTHLY_PRICE_PENCE, 500), yearlyPence: intEnv(env.YEARLY_PRICE_PENCE, 5000) },
+      trialDays: intEnv(env.TRIAL_DAYS, 7), reminderDays: intEnv(env.REMINDER_DAYS_BEFORE, 2), monthlyPence: intEnv(env.MONTHLY_PRICE_PENCE, 500), yearlyPence: intEnv(env.YEARLY_PRICE_PENCE, 5000) },
   });
   const port = Number(env.PORT) || 3000;
   http.createServer(app).listen(port, () => console.log(`Excel Easy running at ${baseUrl} (port ${port})`));
+  // Trial reminder emails: check shortly after start, then every hour. Run only ONE server instance with this on.
+  if (env.DISABLE_REMINDERS !== '1') {
+    const tick = () => app.runTrialReminders()
+      .then((r) => { if (r.sent || r.failed) console.log(`trial reminders: ${r.sent} sent, ${r.failed} failed`); })
+      .catch((e) => console.error('trial reminder run failed:', e.message));
+    setTimeout(tick, 10 * 1000).unref();
+    setInterval(tick, 60 * 60 * 1000).unref();
+  }
 }
 
 module.exports = { createApp, sign, verify };

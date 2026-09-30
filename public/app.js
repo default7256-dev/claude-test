@@ -167,12 +167,14 @@
     if (on) { try { await loadPremiumScript(); } catch (e) { toast(e.message); } }
     else { C.premiumReady = false; }
   }
-  let plans = { trialDays: 7, monthly: 500, yearly: 5000 };
+  let plans = { trialDays: 7, monthly: 500, yearly: 5000, reminderDays: 2 };
   const gbp = (p) => '£' + (p % 100 ? (p / 100).toFixed(2) : String(p / 100));
   function applyPlans() {
     $$('[data-price]').forEach((el) => { el.textContent = gbp(plans[el.dataset.price]); });
     $$('[data-trial]').forEach((el) => { el.textContent = plans.trialDays; });
     $$('[data-trial-line]').forEach((el) => { el.hidden = !(plans.trialDays > 0); });
+    $$('[data-remind]').forEach((el) => { el.textContent = plans.reminderDays === 1 ? '1 day' : `${plans.reminderDays} days`; });
+    $$('[data-remind-line]').forEach((el) => { el.hidden = !(plans.reminderDays > 0); });
     $$('[data-cta]').forEach((el) => { el.textContent = plans.trialDays > 0 ? `Start ${plans.trialDays}-day free trial` : 'Go Premium'; });
     const saving = plans.monthly * 12 - plans.yearly;
     $$('[data-saving]').forEach((el) => { el.hidden = saving <= 0; el.textContent = `Save ${gbp(saving)}`; });

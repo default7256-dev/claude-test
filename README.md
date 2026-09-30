@@ -34,6 +34,7 @@ Test cards: `4242 4242 4242 4242`, any future date, any CVC. Sign-in links are p
 - **Buying:** "Start free trial" → choose monthly or yearly → Stripe Checkout (hosted by Stripe, so card details never touch this server) → back to `/api/checkout/complete`, which verifies the session with Stripe and signs the buyer in.
 - **Returning:** "Sign in" → enter email → one-time link (15 min) is emailed if that email has an active subscription. The response is identical either way so emails can't be probed.
 - **Cancelling / card updates / invoices:** "Manage subscription" opens the Stripe Customer Portal.
+- **Trial reminder emails:** once an hour the server asks Stripe for trials ending within `REMINDER_DAYS_BEFORE` days (default 2) and emails each person once: the end date, the price they will be charged, and a one-click cancel link (`/api/manage`, opens the Stripe billing page, valid until a week after the trial ends). Sent reminders are recorded in the subscription's Stripe metadata (`trial_reminder_sent`), so restarts never cause duplicates and a failed email is retried next hour. If you run more than one copy of the server, set `DISABLE_REMINDERS=1` on all but one.
 - **No database.** Stripe is the source of truth; subscription status is re-checked with Stripe at most every 5 minutes, so cancellations and failed payments take effect within about 5 minutes.
 
 ## Going live checklist
@@ -44,7 +45,7 @@ Test cards: `4242 4242 4242 4242`, any future date, any CVC. Sign-in links are p
 4. Email: create a [Resend](https://resend.com) account, verify your sending domain, set `RESEND_API_KEY` and `EMAIL_FROM`.
 5. UK VAT: if you are (or must be) VAT-registered, set up Stripe Tax and `STRIPE_TAX=1`. Decide whether £5 is VAT-inclusive.
 6. **Edit `public/terms.html` and `public/privacy.html`**: they are drafts with `[bracketed]` gaps and need a proper legal review (UK consumer law gives 14-day cancellation rights for online subscriptions).
-7. Trial reminders: UK rules on subscription traps are tightening. Turn on Stripe's "trial ending" reminder emails (Settings → Billing → Subscriptions and emails), which is the one optional dashboard toggle, or add your own reminder email.
+7. Trial reminders are built in (see below) but they are sent through Resend, so step 4 is required for them to reach anyone.
 8. Test the whole loop in Stripe test mode first: start a trial on each plan, sign out, sign back in by email, cancel in the portal.
 
 ## Files
