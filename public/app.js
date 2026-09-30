@@ -31,7 +31,7 @@
     if (!$('#tab-' + name)) name = 'home';
     $$('.panel').forEach((p) => { p.hidden = p.id !== 'tab-' + name; });
     $$('.tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
-    if (updateHash !== false) history.replaceState(null, '', '#' + name);
+    if (updateHash !== false) { try { history.replaceState(null, '', '#' + name); } catch (e) { /* sandboxed viewer */ } }
     window.scrollTo({ top: 0 });
   }
   $$('.tabs button').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
@@ -211,8 +211,9 @@
   const qs = new URLSearchParams(location.search);
   if (qs.get('welcome')) toast('🎉 Welcome to Premium! Everything is unlocked.');
   if (qs.get('signin') === 'failed') toast('That sign-in link has expired. Please request a new one.');
-  if (qs.get('welcome') || qs.get('signin') || qs.get('cancelled')) history.replaceState(null, '', location.pathname + location.hash);
+  if (qs.get('welcome') || qs.get('signin') || qs.get('cancelled')) { try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) { /* sandboxed viewer */ } }
   setPremiumUI(false);
+  C.refreshAccount = refreshAccount;
   refreshAccount();
 
   showTab((location.hash || '#home').slice(1), false);

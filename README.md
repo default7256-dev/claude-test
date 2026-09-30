@@ -16,6 +16,10 @@ No install, no account, no build step: open `index.html` in any browser.
 
 Accessibility: keyboard friendly, screen-reader labels, adjustable text size (A+ / A−), light/dark mode, works on phones.
 
+## Try it without Stripe
+
+`npm run build:demo` writes a self-contained demo to `dist/demo/` (open `index.html`). Checkout, billing and the reminder email are simulated in the page, so you can click through the whole flow without keys.
+
 ## Running it
 
 ```
